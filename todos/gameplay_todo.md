@@ -53,9 +53,9 @@ const state = {
 ## Step 3 — The game loop (the big React lesson)
 
 **Requirements**
-- [ ] Start a `requestAnimationFrame` loop inside a `useEffect`
-- [ ] Each frame: update positions → clear canvas → redraw everything
-- [ ] Clean the loop up when the component unmounts (return a cleanup function!)
+- [x] Start a `requestAnimationFrame` loop inside a `useEffect`
+- [x] Each frame: update positions → clear canvas → redraw everything
+- [x] Clean the loop up when the component unmounts (return a cleanup function!)
 
 **Pseudocode**
 ```js

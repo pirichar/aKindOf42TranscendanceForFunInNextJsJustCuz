@@ -1,36 +1,63 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 🏓 Pong
 
-## Getting Started
-
-First, run the development server:
-
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+```
+        ██████╗   ██████╗  ███╗   ██╗  ██████╗
+        ██╔══██╗ ██╔═══██╗ ████╗  ██║ ██╔════╝
+        ██████╔╝ ██║   ██║ ██╔██╗ ██║ ██║  ███╗
+        ██╔═══╝  ██║   ██║ ██║╚██╗██║ ██║   ██║
+        ██║      ╚██████╔╝ ██║ ╚████║ ╚██████╔╝
+        ╚═╝       ╚═════╝  ╚═╝  ╚═══╝  ╚═════╝
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+A web remake of the classic — and my for-fun take on **ft_transcendence**,
+the final project of [42](https://42.fr): an online Pong where you can play
+against other people, or against an AI when nobody's around.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Built to get better at **React** — the game runs on a `<canvas>` driven by
+`requestAnimationFrame`, with React managing the UI around it.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 🚧 Status
 
-## Learn More
+Work in progress — the local game is being built step by step
+(the full plan lives in [`todo.md`](./todo.md)):
 
-To learn more about Next.js, take a look at the following resources:
+- [x] Game court rendered on canvas (ball, paddles, net)
+- [x] Game loop with `requestAnimationFrame`
+- [x] Ball movement & wall bounces
+- [ ] Keyboard-controlled paddle
+- [ ] Paddle collisions
+- [ ] Scoring
+- [ ] AI opponent
+- [ ] Pause / win screen
+- [ ] Online multiplayer 👀
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## 🕹️ Getting Started
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm install
+npm run dev
+```
 
-## Deploy on Vercel
+Then open [http://localhost:3000/pong](http://localhost:3000/pong) and enjoy.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+## 🧰 Tech
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [Next.js](https://nextjs.org) (App Router)
+- [React](https://react.dev) — hooks, refs, and a game loop living in `useEffect`
+- HTML5 Canvas 2D API
+- [Tailwind CSS](https://tailwindcss.com)
+
+## 👤 Author
+
+```
+        ██████╗   ██╗  ██████╗
+        ██╔══██╗  ██║  ██╔══██╗
+        ██████╔╝  ██║  ██████╔╝
+        ██╔═══╝   ██║  ██╔══██╗
+        ██║       ██║  ██║  ██║
+        ╚═╝       ╚═╝  ╚═╝  ╚═╝
+```
+
+**PL Richard** — [github.com/pirichar](https://github.com/pirichar)
+
+*Made for fun. Bounces guaranteed (eventually).*

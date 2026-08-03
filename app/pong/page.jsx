@@ -9,8 +9,8 @@ const Canvas = props => {
 
 	// initial game state — lives in a useRef, NOT useState
 	const state = useRef({
-		ball:  { x: props.width / 2, y: props.height / 2, r: 8, vx: 4, vy: 3 },
-		left:  { x: 10, y: props.height / 2 - 40, w: 12, h: 80 },
+		ball: { x: props.width / 2, y: props.height / 2, r: 8, vx: 4, vy: 3 },
+		left: { x: 10, y: props.height / 2 - 40, w: 12, h: 80 },
 		right: { x: props.width - 22, y: props.height / 2 - 40, w: 12, h: 80 },
 	});
 
@@ -31,13 +31,13 @@ const Canvas = props => {
 		ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 	}
 
-	const drawNet =  (ctx) => {
+	const drawNet = (ctx) => {
 		ctx.strokeStyle = "#000000";
 		ctx.lineWidth = 4;
 		ctx.setLineDash([10, 10]); // 10px dash, 10px gap
 		ctx.beginPath();
 		ctx.moveTo(ctx.canvas.width / 2, 0); // top middle
-		ctx.lineTo(ctx.canvas.width /2, ctx.canvas.height);  // bottom middle
+		ctx.lineTo(ctx.canvas.width / 2, ctx.canvas.height);  // bottom middle
 		ctx.stroke();                         // ← this is what draws it
 		ctx.setLineDash([]);                  // reset: line dash is sticky, like fillStyle
 	}
@@ -45,24 +45,43 @@ const Canvas = props => {
 	useEffect(() => {
 		const canvas = canvasRef.current;
 		const context = canvas.getContext('2d');
-		let frameCount = 0;
 		let animationFrameId;
 
-		//our Draw came here
-		const render = () => {
-			frameCount++;
-			drawBackground(context, frameCount);
-			drawNet(context);
-			drawBall(context,state.current.ball);
-			drawPaddle(context,state.current.left);
-			drawPaddle(context,state.current.right);
-			animationFrameId = window.requestAnimationFrame(render);
-		}
-		render();
 
-		return () => {
-			window.cancelAnimationFrame(animationFrameId)
+		const update = (game, ctx) => {
+			//move things here
+			const ball = game.ball;
+
+			game.ball.x += game.ball.vx;
+			game.ball.y += game.ball.vy;
+
+			if (ball.y - ball.r <= 0 || ball.y + ball.r >= ctx.canvas.height){
+				ball.vy = -ball.vy;
+			}
+			if (ball.x - ball.r <= 0 || ball.x + ball.r >= ctx.canvas.width){
+				ball.vx = -ball.vx;
+			}
+			
+
 		}
+
+		//our Draw came here
+		const render = (ctx, game) => {
+			drawBackground(ctx);
+			drawNet(ctx);
+			drawBall(ctx, game.ball);
+			drawPaddle(ctx, game.left);
+			drawPaddle(ctx, game.right);
+		}
+
+		const loop = () => {
+			update(state.current, context); //move tings
+			render(context, state.current);
+			animationFrameId = requestAnimationFrame(loop);
+		}
+		animationFrameId = requestAnimationFrame(loop);
+
+		return () => window.cancelAnimationFrame(animationFrameId)
 
 	}, [state]);
 
@@ -71,5 +90,13 @@ const Canvas = props => {
 }
 
 export default function Page() {
-	return <Canvas width={800} height={500} style={{ border: '2px solid black' }} />
+	return (
+		<div>
+			<div className="flex justify-center items-center min-h-screen">
+				<div>
+					<h1 className="text-white font-bold text-5xl font-serif text-center">Pong</h1>
+					<Canvas width={800} height={500} style={{ border: '10px solid black' }} />
+				</div>
+			</div>
+		</div>)
 }
