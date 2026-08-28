@@ -86,12 +86,24 @@ useEffect(() => {
 ## Step 4 — Ball bounces off top and bottom
 
 **Requirements**
-- [ ] When the ball's edge (not center — remember the radius) touches the top or bottom, invert `vy`
+- [x] When the ball's edge (not center — remember the radius) touches the top or bottom, invert `vy`
 
-**Pseudocode**
+**code**
 ```
-if ball.y - ball.r <= 0 OR ball.y + ball.r >= canvas.height:
-    ball.vy = -ball.vy
+		const update = (ctx: CanvasRenderingContext2D, game: GameState) => {
+			//move things here
+			const ball = game.ball;
+
+			ball.x += ball.vx;
+			ball.y += ball.vy;
+
+			if (ball.y - ball.r <= 0 || ball.y + ball.r >= ctx.canvas.height) {
+				ball.vy = -ball.vy;
+			}
+			if (ball.x - ball.r <= 0 || ball.x + ball.r >= ctx.canvas.width) {
+				ball.vx = -ball.vx;
+			}
+		};
 ```
 
 ---
