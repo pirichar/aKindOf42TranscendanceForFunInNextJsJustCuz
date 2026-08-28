@@ -18,6 +18,28 @@ const PADDLE_MARGIN = 10;   // gap between a paddle and its side wall
 const PADDLE_SPEED = 5;     // pixels per frame
 const BALL_RADIUS = 8;
 
+function hit(ball: Ball, paddle: Paddle): boolean {
+	return (
+		ball.x - ball.r < paddle.x + paddle.w &&
+		ball.x + ball.r > paddle.x &&
+		ball.y - ball.r < paddle.y + paddle.h &&
+		ball.y + ball.r > paddle.y
+	);
+}
+
+const manageBallBounces = (ball: Ball, ctx: CanvasRenderingContext2D, left: Paddle, right: Paddle) => {
+	//ceiling and floor always bounces
+	if (ball.y - ball.r <= 0 || ball.y + ball.r >= ctx.canvas.height) {
+		ball.vy = -ball.vy;
+	}
+	if (hit(ball, left)) {
+		ball.vx = -ball.vx;
+	}
+	if (hit(ball, right)) {
+		ball.vx = -ball.vx;
+	}
+};
+
 const Canvas = (props: CanvasProps) => {
 
 	const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -119,12 +141,7 @@ const Canvas = (props: CanvasProps) => {
 			ball.x += ball.vx;
 			ball.y += ball.vy;
 
-			if (ball.y - ball.r <= 0 || ball.y + ball.r >= ctx.canvas.height) {
-				ball.vy = -ball.vy;
-			}
-			if (ball.x - ball.r <= 0 || ball.x + ball.r >= ctx.canvas.width) {
-				ball.vx = -ball.vx;
-			}
+			manageBallBounces(ball, ctx, left, right);
 		};
 
 		//our Draw came here

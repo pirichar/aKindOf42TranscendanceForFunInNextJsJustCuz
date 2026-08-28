@@ -111,10 +111,10 @@ useEffect(() => {
 ## Step 5 — Keyboard-controlled paddle
 
 **Requirements**
-- [ ] Player paddle follows keys: W/S (or ArrowUp/ArrowDown)
-- [ ] Listen with a `keydown`/`keyup` effect on `window` — and remove the listeners in cleanup
-- [ ] Movement should be smooth: track *which keys are held* in a ref, and move the paddle inside the game loop (don't move it directly in the event handler)
-- [ ] Clamp the paddle so it can't leave the canvas
+- [x] Player paddle follows keys: W/S (or ArrowUp/ArrowDown) (did both — W/S left paddle, arrows right paddle)
+- [x] Listen with a `keydown`/`keyup` effect on `window` — and remove the listeners in cleanup (`KeyboardInput` class in `components/movement.ts`, `destroy()` called in effect cleanup)
+- [x] Movement should be smooth: track *which keys are held* in a ref, and move the paddle inside the game loop (don't move it directly in the event handler)
+- [x] Clamp the paddle so it can't leave the canvas (`movePaddle()` helper)
 
 **Pseudocode**
 ```js
@@ -138,8 +138,8 @@ useEffect(() => {
 ## Step 6 — Ball bounces off paddles
 
 **Requirements**
-- [ ] Detect ball–paddle overlap (rectangle vs circle; treating the ball as a small square is fine)
-- [ ] On hit: invert `vx`
+- [x] Detect ball–paddle overlap (rectangle vs circle; treating the ball as a small square is fine) (`hit()` in `page.tsx`, module level)
+- [x] On hit: invert `vx` (`manageBallBounces()`; left/right wall bounce removed — missed ball flies off, ready for step 7)
 - [ ] Nicer bounce (optional): the further from the paddle's center the ball hits, the steeper the angle → set `vy` based on `(ball.y - paddleCenter) / (paddle.h / 2)`
 
 **Pseudocode**
