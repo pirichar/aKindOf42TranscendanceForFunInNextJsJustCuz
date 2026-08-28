@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { KeyboardInput } from "../components/movement";
 import type { Ball, Paddle, GameState } from "../components/types";
 
@@ -40,9 +40,24 @@ const manageBallBounces = (ball: Ball, ctx: CanvasRenderingContext2D, left: Padd
 	}
 };
 
+function checkScore(ball: Ball, canvasWidth: number): "left" | "right" | null {
+	if (ball.x + ball.r < 0) return "right";
+	if (ball.x - ball.r > canvasWidth) return "left";
+	return null;
+}
+
+function resetBall(ball: Ball, canvasWidth: number, canvasHeight: number, direction: number) {
+	ball.x = canvasWidth /2;
+	ball.y = canvasHeight /2;
+	ball.vx = 4 * direction;
+	ball.vy = 3;
+
+}
+
 const Canvas = (props: CanvasProps) => {
 
 	const canvasRef = useRef<HTMLCanvasElement>(null);
+	const [score, setScore] = useState({left:0, right: 0});
 	// initial game state — lives in a useRef, NOT useState
 	const state = useRef<GameState>({
 		ball: {
@@ -142,6 +157,17 @@ const Canvas = (props: CanvasProps) => {
 			ball.y += ball.vy;
 
 			manageBallBounces(ball, ctx, left, right);
+
+			const scorer = checkScore(ball, ctx.canvas.width);
+
+			if (scorer === "right") {
+				setScore(s => ({ left: s.left, right: s.right + 1 }));
+				resetBall(ball, ctx.canvas.width, ctx.canvas.height, -1);
+			}
+			if (scorer === "left") {
+				setScore(s => ({ left: s.left + 1, right: s.right }));
+				resetBall(ball, ctx.canvas.width, ctx.canvas.height, 1);
+			}
 		};
 
 		//our Draw came here
@@ -167,7 +193,14 @@ const Canvas = (props: CanvasProps) => {
 
 	}, []);
 
-	return <canvas ref={canvasRef} width={props.width} height={props.height} style={props.style} />;
+	return (
+		<div>
+			<div className="text-white text-3xl text-center font-mono">
+				{score.left} — {score.right}
+			</div>
+			<canvas ref={canvasRef} width={props.width} height={props.height} style={props.style} />
+		</div>
+	);
 
 };
 
