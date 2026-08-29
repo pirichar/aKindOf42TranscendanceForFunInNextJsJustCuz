@@ -161,9 +161,9 @@ hit(ball, paddle):
 ## Step 7 — Scoring (this is where useState finally appears)
 
 **Requirements**
-- [ ] When the ball exits left → right player scores; exits right → left player scores
-- [ ] Score lives in `useState` and is rendered as JSX (a `<div>` above the canvas — no need to draw text on canvas)
-- [ ] After a point: reset ball to center, send it toward whoever just conceded
+- [x] When the ball exits left → right player scores; exits right → left player scores (`checkScore()` returns `"left" | "right" | null`, called after `manageBallBounces()`)
+- [x] Score lives in `useState` and is rendered as JSX (a `<div>` above the canvas — no need to draw text on canvas) (rendered inside `Canvas`, above the `<canvas>`; loop writes via `setScore(s => ...)`, never reads `score`)
+- [x] After a point: reset ball to center, send it toward whoever just conceded (`resetBall(ball, w, h, direction)`, -1 = toward left, 1 = toward right)
 
 **Hints**
 - The game loop can't read fresh `useState` values (stale closure!) —

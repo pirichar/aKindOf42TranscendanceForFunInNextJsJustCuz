@@ -15,8 +15,10 @@ interface CanvasProps {
 const PADDLE_WIDTH = 12;
 const PADDLE_HEIGHT = 80;
 const PADDLE_MARGIN = 10;   // gap between a paddle and its side wall
-const PADDLE_SPEED = 5;     // pixels per frame
+const PADDLE_SPEED = 10;     // pixels per frame
 const BALL_RADIUS = 8;
+const BALL_VX = 10;
+const BALL_YX = 3;
 
 function hit(ball: Ball, paddle: Paddle): boolean {
 	return (
@@ -47,25 +49,45 @@ function checkScore(ball: Ball, canvasWidth: number): "left" | "right" | null {
 }
 
 function resetBall(ball: Ball, canvasWidth: number, canvasHeight: number, direction: number) {
-	ball.x = canvasWidth /2;
-	ball.y = canvasHeight /2;
-	ball.vx = 4 * direction;
-	ball.vy = 3;
+	ball.x = canvasWidth / 2;
+	ball.y = canvasHeight / 2;
+	ball.vx = BALL_VX * direction;
+	ball.vy = BALL_YX;
 
 }
 
 const Canvas = (props: CanvasProps) => {
 
 	const canvasRef = useRef<HTMLCanvasElement>(null);
-	const [score, setScore] = useState({left:0, right: 0});
-	// initial game state — lives in a useRef, NOT useState
+
+	/*
+	** ref vs state
+	** ref   : a plain box (.current). Writing it re-renders nothing.
+	**         The game loop can read AND write it every frame.
+	** state : owned by React. Writing it (setX) re-renders the JSX.
+	**         The loop can write it, but only ever sees the FIRST value
+	**         (the effect ran once, so the closure is frozen).
+	**
+	** rule  : loop reads it  -> ref
+	**         JSX shows it   -> state
+	**         both           -> ref is the truth, state is a mirror
+	*/
+
+	// JSX only. The loop never reads the score, it only bumps it.
+	const [score, setScore] = useState({ left: 0, right: 0 });
+
+	// Both. Loop reads isPausedRef every frame; JSX shows isPaused.
+	const isPausedRef = useRef(false);
+	const [isPaused, setIsPaused] = useState(false);
+
+	// Loop only. Changes 60x/s; a re-render per frame would be absurd.
 	const state = useRef<GameState>({
 		ball: {
 			x: props.width / 2,
 			y: props.height / 2,
 			r: BALL_RADIUS,
-			vx: 4,
-			vy: 3,
+			vx: BALL_VX,
+			vy: BALL_YX,
 		},
 		left: {
 			x: PADDLE_MARGIN,
@@ -160,6 +182,8 @@ const Canvas = (props: CanvasProps) => {
 
 			const scorer = checkScore(ball, ctx.canvas.width);
 
+			// setScore(s => ...) : React hands us the REAL current value in s.
+			// setScore({ ...score }) would use the frozen first-render score.
 			if (scorer === "right") {
 				setScore(s => ({ left: s.left, right: s.right + 1 }));
 				resetBall(ball, ctx.canvas.width, ctx.canvas.height, -1);
@@ -179,8 +203,21 @@ const Canvas = (props: CanvasProps) => {
 			drawPaddle(ctx, game.right);
 		};
 
+		let escapeWasDown = false;
+
 		const loop = () => {
-			update(context, state.current); //move tings
+			// Rising edge: toggle once per key press, not once per frame held.
+			const escapeIsDown = input.isPressed("Escape");
+			if (escapeIsDown && !escapeWasDown){
+				isPausedRef.current = !isPausedRef.current;	// truth, read below
+				setIsPaused(isPausedRef.current);			// mirror, for the JSX
+			}
+			escapeWasDown = escapeIsDown;
+
+			// Reading the ref, never isPaused: that one is frozen at false here.
+			if (!isPausedRef.current) {
+				update(context, state.current); //move tings
+			}
 			render(context, state.current);
 			animationFrameId = requestAnimationFrame(loop);
 		};
@@ -198,6 +235,7 @@ const Canvas = (props: CanvasProps) => {
 			<div className="text-white text-3xl text-center font-mono">
 				{score.left} — {score.right}
 			</div>
+			  {isPaused && <div className="text-white text-center">Paused</div>}
 			<canvas ref={canvasRef} width={props.width} height={props.height} style={props.style} />
 		</div>
 	);
