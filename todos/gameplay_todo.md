@@ -409,14 +409,14 @@ Loop reads it → ref. So the score can no longer live only in `useState`.
 Both are `absolute inset-0` — they fill their parent. So:
 
 **Requirements**
-- [ ] Add `relative` to the canvas frame `<div className="trait rounded-bulle …">`
-- [ ] Inside that div, after the `<canvas>`, one overlay per phase:
+- [x] Add `relative` to the canvas frame `<div className="trait rounded-bulle …">`
+- [x] Inside that div, after the `<canvas>`, one overlay per phase:
   - `phase === "ready"` → `Menu` "Pong Arena", subtitle with the controls, one primary action `Start` → `setPhase("countdown")`
   - `phase === "countdown"` → `<Countdown value={countdown} />`
   - `phase === "paused"` → `Menu` "Paused", actions `Resume` (→ countdown, primary) and `Restart` (→ `restart`)
   - `phase === "finished"` → `Menu` "Left wins!" / "Right wins!" (compare `score.left` and `score.right`), subtitle `5 — 3`, action `Play again` → `restart`
-- [ ] Remove the `Paused` pill from the scoreboard; the menu replaces it. `vs` stays
-- [ ] Set the initial phase back to `"ready"`
+- [x] Remove the `Paused` pill from the scoreboard; the menu replaces it. `vs` stays
+- [x] Set the initial phase back to `"ready"`
 
 **Hints**
 - `{phase === "ready" && <Menu … />}` — the JSX idiom for `if`. `&&` returns
@@ -430,11 +430,11 @@ Both are `absolute inset-0` — they fill their parent. So:
 ### 9g — Done when
 
 - [ ] `npx tsc --noEmit` clean, `npx eslint app/` clean (no `exhaustive-deps` warning)
-- [ ] `grep -n isPaused app/page.tsx` returns nothing
+- [x] `grep -n isPaused app/page.tsx` returns nothing
 - [ ] Old bullets, for the record:
   - [x] Pause/resume (Escape; rising-edge toggle)
-  - [ ] Win condition: first to 5 → overlay
-  - [ ] Restart button that resets score (state) *and* positions (ref)
+  - [x] Win condition: first to 5 → overlay
+  - [x] Restart button that resets score (state) *and* positions (ref)
 
 **Ideas if you want more**
 - Resume skips the countdown (just `setPhase("playing")`) if the 3 s annoys you

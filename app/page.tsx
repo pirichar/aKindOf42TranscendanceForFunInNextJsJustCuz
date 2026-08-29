@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Logo } from "./components/logo";
 import { KeyboardInput } from "./components/movement";
 import type { Ball, GameState, Paddle, Phase } from "./components/types";
-import {Menu, Countdown} from "./components/menu"
+import { Menu, Countdown } from "./components/menu";
 
 const COLOR = {
   paper: "oklch(0.993 0.013 90)",
@@ -150,8 +150,8 @@ const Canvas = (props: CanvasProps) => {
 
   const [score, setScore] = useState({ left: 0, right: 0 });
 
-  const phaseRef = useRef<Phase>("countdown");
-  const [phase, setPhaseState] = useState<Phase>("countdown");
+  const phaseRef = useRef<Phase>("ready");
+  const [phase, setPhaseState] = useState<Phase>("ready");
   const phaseSince = useRef(0);
   // countdownRef = the digit the loop last saw. countdown = what the JSX will show (9f). 
   // We keep the ref only to answer "did the digit change?" — so 
@@ -331,18 +331,12 @@ const Canvas = (props: CanvasProps) => {
       <div className="flex items-center gap-4">
         <ScorePill label="Left" value={score.left} className="-rotate-2 bg-mandarine-clair" />
 
-        {phase === "paused" ? (
-          <span className="trait rounded-pastille bg-citron px-4 py-1 font-display text-lg font-semibold shadow-autocollant-sm">
-            Paused
-          </span>
-        ) : (
-          <span className="font-display text-lg text-encre-fantome">vs</span>
-        )}
+        <span className="font-display text-lg text-encre-fantome">vs</span>
 
         <ScorePill label="Right" value={score.right} className="rotate-2 bg-menthe" />
       </div>
 
-      <div className="trait rounded-bulle bg-parchemin p-3 shadow-autocollant-lg">
+      <div className="relative trait rounded-bulle bg-parchemin p-3 shadow-autocollant-lg">
         <canvas
           ref={canvasRef}
           width={props.width}
@@ -350,6 +344,34 @@ const Canvas = (props: CanvasProps) => {
           style={props.style}
           className="block max-w-full rounded-2xl"
         />
+
+        {phase === "ready" && (
+          <Menu
+            title="Pong Arena"
+            subtitle="W / S and ↑ / ↓ to move · Esc to pause"
+            actions={[{ label: "Start", onClick: () => setPhase("countdown"), primary: true }]}
+          />
+        )}
+
+        {phase === "countdown" && <Countdown value={countdown} />}
+
+        {phase === "paused" && (
+          <Menu
+            title="Paused"
+            actions={[
+              { label: "Resume", onClick: () => setPhase("countdown"), primary: true },
+              { label: "Restart", onClick: restart },
+            ]}
+          />
+        )}
+
+        {phase === "finished" && (
+          <Menu
+            title={score.left > score.right ? "Left wins!" : "Right wins!"}
+            subtitle={`${score.left} — ${score.right}`}
+            actions={[{ label: "Play again", onClick: restart, primary: true }]}
+          />
+        )}
       </div>
     </div>
   );
