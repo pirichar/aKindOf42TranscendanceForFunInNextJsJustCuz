@@ -32,6 +32,7 @@ const BALL_MAX_VY = 10;
 const BALL_MAX_VX = 20;
 const COUNTDOWN_MS = 3000;
 const WIN_SCORE = 5;
+const TICK_MS = 1000 / 60;
 
 function hit(ball: Ball, paddle: Paddle): boolean {
   return (
@@ -285,8 +286,15 @@ const Canvas = (props: CanvasProps) => {
     };
 
     let escapeWasDown = false;
+    let lastTime = performance.now();
+    let accumulator = 0;
 
-    const loop = () => {
+    const loop = (now: number) => {
+      accumulator += now - lastTime;
+      lastTime = now;
+      if (accumulator > 250) accumulator = 250;
+      if (phaseRef.current !== "playing") accumulator = 0;
+
       // Rising edge: toggle once per key press, not once per frame held.
       const escapeIsDown = input.isPressed("Escape");
       if (escapeIsDown && !escapeWasDown) {
@@ -311,7 +319,10 @@ const Canvas = (props: CanvasProps) => {
           break;
         }
         case "playing":
-          update(context, state.current);
+          while (accumulator >= TICK_MS) {
+            update(context, state.current);
+            accumulator -= TICK_MS;
+          }
           break;
       }
       render(context, state.current);

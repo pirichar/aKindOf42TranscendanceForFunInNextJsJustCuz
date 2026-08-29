@@ -441,6 +441,111 @@ Both are `absolute inset-0` — they fill their parent. So:
 - Space also starts / resumes
 - Sounds with the `Audio` API on bounce/score
 
+### 9h — Touch controls (phone / tablet)
+
+Paddles only go up or down at a fixed speed, so a real analog joystick buys
+nothing. Two "joysticks" = two pairs of big **hold-to-move** buttons. The trick
+that keeps this KISS: a touch button *pretends to be a key*. The loop keeps
+calling `input.isPressed("KeyW")` and never learns that a thumb, not a keyboard,
+pressed it.
+
+**Requirements**
+- [ ] `movement.ts`: two public methods on `KeyboardInput`
+  ```ts
+  public press(code: string): void   { this.keys[code] = true; }
+  public release(code: string): void { this.keys[code] = false; }
+  ```
+  (`onKeyDown` / `onKeyUp` can now just call them)
+- [ ] `page.tsx`: the loop's `input` is trapped inside the effect and the JSX can't reach it. Lift it: `const inputRef = useRef<KeyboardInput | null>(null);` in the body; in the effect `inputRef.current = input;` after `new KeyboardInput()`, and `inputRef.current = null;` in the cleanup
+- [ ] New `components/touch.tsx`: `TouchPad` with props `{ onPress(code: string): void; onRelease(code: string): void }`. Renders two columns (left player, right player), each with a ▲ and a ▼ `<button>`. Each button knows its `code` (`KeyW`/`KeyS` on the left, `ArrowUp`/`ArrowDown` on the right)
+- [ ] Buttons use **pointer** events, not click: `onPointerDown` → `onPress(code)`; `onPointerUp`, `onPointerLeave`, `onPointerCancel` → `onRelease(code)`. Three release events because a finger that slides off or gets interrupted by a phone call must not leave the paddle running forever
+- [ ] `touch-action: none` on the buttons (Tailwind `touch-none`) — otherwise the browser eats the long press as a scroll / text-selection gesture. Add `select-none` too
+- [ ] Show it only on touch devices: `hidden pointer-coarse:flex` (Tailwind 4.1+ variant, matches `@media (pointer: coarse)`)
+- [ ] Wire in `page.tsx`, under the canvas frame:
+  ```tsx
+  <TouchPad
+  	onPress={(code) => inputRef.current?.press(code)}
+  	onRelease={(code) => inputRef.current?.release(code)}
+  />
+  ```
+  `?.` = "call it only if `current` isn't null" (the effect hasn't run yet on the very first render)
+- [ ] There is no Esc key on a phone: a small **Pause** button, also `pointer-coarse:` only, `onClick={() => setPhase("paused")}`, rendered only while `phase === "playing"`
+- [ ] Layout check: the canvas already shrinks with `max-w-full`; in **portrait** it's ~360 px wide and the paddles are tiny — fine for now. The pads go *below* it, left column under the left paddle, right under the right. Landscape is the intended way to play; a `md:` tweak can wait
+
+**Hints**
+- Style the buttons like the menu ones: `autocollant trait rounded-bulle bg-parchemin` — big hit area, `min-h-20 min-w-24`, `text-3xl`
+- Test on the Mac first: Chrome devtools → toggle device toolbar → pick a phone; pointer events fire from the mouse too. Then `npm run dev` and open `http://<your-mac-ip>:3000` from the phone on the same Wi-Fi (`ipconfig getifaddr en0` gives the ip)
+- Later (Step 16) the server model is `input: "up" | "down" | null` per player — this press/release shape maps 1:1 onto it, so nothing here is throwaway
+
+**Done when**
+- [ ] Two thumbs on a phone move both paddles at once; lifting a finger stops the paddle
+- [ ] Keyboard still works, unchanged
+- [ ] Pads are invisible on a laptop with a mouse
+
+### 9i — Same speed on every screen (fixed timestep)
+
+`requestAnimationFrame` fires once per screen refresh: 60×/s on a normal monitor,
+120×/s on a MacBook Pro (ProMotion), 144+ on a gaming screen. `update()` moves the
+ball `BALL_VX` px per *call*, so on the MacBook the game literally runs twice as
+fast. Two ways out:
+
+- **Variable timestep**: multiply every movement by `dt` (seconds since last
+  frame). Simple, but `hit()` gets flaky (a long frame = a big jump = tunneling
+  through the paddle), and the constants change meaning (px/s, not px/frame).
+- **Fixed timestep** ← this one. Decide the game ticks **60 times per second, period**.
+  The render loop just asks "how many ticks am I owed since last frame?" and
+  runs `update()` that many times. 120 Hz screen → `update()` every 2nd frame.
+  30 fps laptop → 2 updates per frame. The server (Step 15) *is* a fixed 60 Hz
+  `setInterval`, so this makes the client run the exact same math as the server.
+  Constants keep their meaning: `BALL_VX = 10` = 10 px per tick, forever.
+
+**Requirements**
+- [x] Constants: `const TICK_MS = 1000 / 60;`
+- [x] Inside the effect, next to `escapeWasDown`:
+  ```ts
+  let lastTime = performance.now();
+  let accumulator = 0;
+  ```
+- [x] `loop` receives the timestamp rAF hands it: `const loop = (now: number) => { … }`.
+  At the top:
+  ```ts
+  accumulator += now - lastTime;
+  lastTime = now;
+  ```
+- [x] `case "playing"` becomes a `while`:
+  ```ts
+  while (accumulator >= TICK_MS) {
+  	update(context, state.current);
+  	accumulator -= TICK_MS;
+  }
+  ```
+  The accumulator is a bank: each frame deposits the elapsed ms, each tick
+  withdraws 16.67. Leftover carries to the next frame — nothing is lost, nothing
+  is double-counted
+- [x] **Clamp** it: right after the deposit, `if (accumulator > 250) accumulator = 250;`
+  Tab in the background for a minute → rAF stops → without the clamp you come back
+  owing 3600 ticks and the ball teleports across the room. 250 ms = at most 15
+  catch-up ticks
+- [x] In every *other* case (`ready`, `countdown`, `paused`, `finished`): `accumulator = 0;`
+  Otherwise the 3 s countdown banks 180 ticks and the ball sprints off the moment
+  play starts. Cleanest: one line before the `switch` — `if (phaseRef.current !== "playing") accumulator = 0;`
+- [x] `render()` stays once per frame, after the switch. Drawing is per screen, simulating is per tick
+
+**Hints**
+- `requestAnimationFrame(loop)` already passes `now` as the first argument —
+  a `DOMHighResTimeStamp` in ms, same clock as `performance.now()`. You don't
+  need to call `performance.now()` inside `loop` anymore
+- Quick check: `console.log` a counter of `update()` calls once per second. Both
+  screens must say ~60. Then drag the window between the two monitors mid-game:
+  no speed change
+- Paddles move in `update()` too, so they get the same fix for free — that's
+  the point of having a single `update()`
+
+**Done when**
+- [ ] Ball crosses the field in the same time on the 120 Hz and the 60 Hz screen
+- [ ] Alt-tab away 30 s, come back: the ball is roughly where it was, no teleport
+- [ ] Countdown → play: ball starts at normal speed, no burst
+
 ---
 
 # Part B — Make the game pure (server-ready refactor)
@@ -758,7 +863,7 @@ interface Session {
 - [ ] Client-side prediction for your own paddle (fixes the ~50–100 ms lag feel)
 - [ ] Nicer bounce angle (Step 6 optional bullet), ball speed-up per hit
 - [ ] Game customization: paddle size, ball speed, map — vote in chat?
-- [ ] Sounds, mobile touch controls, responsive canvas
+- [ ] Sounds, responsive canvas (touch controls: see 9h)
 - [ ] Ladder / achievements — only if stats exist
 
 ---
