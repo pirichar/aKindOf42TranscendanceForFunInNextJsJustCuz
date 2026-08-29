@@ -298,10 +298,10 @@ Do the sub-steps in order. Each one compiles and runs on its own.
 ### 9a — `phase` replaces `isPaused`
 
 **Requirements**
-- [ ] `type Phase = …` at module level (top of `page.tsx`)
-- [ ] `phaseRef = useRef<Phase>("ready")` (the loop reads it) + `[phase, setPhaseState] = useState<Phase>("ready")` (the JSX shows it) — same both-ways pattern as `isPausedRef`/`isPaused`
-- [ ] `phaseSince = useRef(0)` — timestamp of when the current phase started. The countdown needs it
-- [ ] One helper that sets all three, so you can never forget the mirror:
+- [x] `type Phase = …` at module level (top of `page.tsx`) (put it in `components/types.ts` instead — better, it's shared)
+- [x] `phaseRef = useRef<Phase>("ready")` (the loop reads it) + `[phase, setPhaseState] = useState<Phase>("ready")` (the JSX shows it) — same both-ways pattern as `isPausedRef`/`isPaused`
+- [x] `phaseSince = useRef(0)` — timestamp of when the current phase started. The countdown needs it
+- [x] One helper that sets all three, so you can never forget the mirror:
   ```ts
   const setPhase = useCallback((next: Phase) => {
   	phaseRef.current = next;
@@ -309,9 +309,9 @@ Do the sub-steps in order. Each one compiles and runs on its own.
   	setPhaseState(next);
   }, []);
   ```
-- [ ] Delete `isPausedRef`, `isPaused`, `setIsPaused`
-- [ ] Loop: `if (phaseRef.current === "playing") update(...)`. Nothing else yet. Game is frozen on load — correct, there's no Start button yet
-- [ ] Effect dependency array becomes `[setPhase]`
+- [x] Delete `isPausedRef`, `isPaused`, `setIsPaused`
+- [x] Loop: `if (phaseRef.current === "playing") update(...)`. Nothing else yet. Game is frozen on load — correct, there's no Start button yet
+- [x] Effect dependency array becomes `[setPhase]`
 
 **Why `useCallback`** (new): the effect calls `setPhase`, so the linter wants
 it in the dependency array. A plain `const setPhase = () => …` is a NEW function
@@ -326,11 +326,11 @@ Win check = "did anyone reach 5?" — and the **loop** has to ask that.
 Loop reads it → ref. So the score can no longer live only in `useState`.
 
 **Requirements**
-- [ ] `types.ts`: `export interface Score { left: number; right: number }` and add `score: Score` to `GameState`
-- [ ] Initial state gets `score: { left: 0, right: 0 }`
-- [ ] `update()`: `game.score.right += 1` (or `.left`), then mirror: `setScore({ ...game.score })`
-- [ ] The `setScore(s => …)` updater form goes away. It was needed because state was the truth; now the ref is
-- [ ] Update or delete the two comment lines above the scoring block
+- [x] `types.ts`: `export interface Score { left: number; right: number }` and add `score: Score` to `GameState`
+- [x] Initial state gets `score: { left: 0, right: 0 }`
+- [x] `update()`: `game.score.right += 1` (or `.left`), then mirror: `setScore({ ...game.score })`
+- [x] The `setScore(s => …)` updater form goes away. It was needed because state was the truth; now the ref is
+- [x] Update or delete the two comment lines above the scoring block
 
 **Hint**
 - `{ ...game.score }` = a *copy*. React compares object identity to decide
@@ -340,9 +340,9 @@ Loop reads it → ref. So the score can no longer live only in `useState`.
 ### 9c — Countdown
 
 **Requirements**
-- [ ] `const COUNTDOWN_MS = 3000;` in the constants
-- [ ] `countdownRef = useRef(3)` + `[countdown, setCountdown] = useState(3)` — both-ways again: the loop computes the digit every frame, but only calls `setCountdown` when it changes (otherwise 60 re-renders/s)
-- [ ] Loop becomes a `switch (phaseRef.current)`:
+- [x] `const COUNTDOWN_MS = 3000;` in the constants
+- [x] `countdownRef = useRef(3)` + `[countdown, setCountdown] = useState(3)` — both-ways again: the loop computes the digit every frame, but only calls `setCountdown` when it changes (otherwise 60 re-renders/s)
+- [x] Loop becomes a `switch (phaseRef.current)`:
   ```ts
   case "countdown": {
   	const elapsed = performance.now() - phaseSince.current;
@@ -359,7 +359,7 @@ Loop reads it → ref. So the score can no longer live only in `useState`.
   	break;
   ```
   `render()` stays *after* the switch — always draw, whatever the phase
-- [ ] Temporarily start in `"countdown"` instead of `"ready"` to test: the game should start after 3 s
+- [x] Temporarily start in `"countdown"` instead of `"ready"` to test: the game should start after 3 s
 
 **Hint**
 - `Math.ceil`, not `floor`: at 2999 ms elapsed there's 1 ms left → ceil gives 1,

@@ -14,9 +14,16 @@ export interface Paddle {
 	w: number;
 	h: number;
 }
+export interface Score {
+	left: number,
+	right: number,
+}
 
 export interface GameState {
 	ball: Ball;
 	left: Paddle;
 	right: Paddle;
+	score: Score;
 }
+
+export type Phase = "ready" | "countdown" | "playing" | "paused" | "finished";
