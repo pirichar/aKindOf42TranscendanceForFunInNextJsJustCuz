@@ -3,6 +3,14 @@
 import React, { useEffect, useRef, useState } from "react";
 import { KeyboardInput } from "../components/movement";
 import type { Ball, Paddle, GameState } from "../components/types";
+import { Logo } from "../components/logo";
+
+const COLOR = {
+	paper: "oklch(0.993 0.013 90)",
+	ink: "oklch(0.278 0.058 288)",
+	inkGhost: "oklch(0.66 0.032 288)",
+	ball: "oklch(0.752 0.169 56)",
+};
 
 // What a <Canvas> needs to be given. The "?" means optional.
 interface CanvasProps {
@@ -104,15 +112,20 @@ const Canvas = (props: CanvasProps) => {
 	});
 
 	const drawBall = (ctx: CanvasRenderingContext2D, ball: Ball) => {
-		ctx.fillStyle = "#000000";
+		ctx.fillStyle = COLOR.ball;
+		ctx.strokeStyle = COLOR.ink;
+		ctx.lineWidth = 3;
 		ctx.beginPath();
 		ctx.arc(ball.x, ball.y, ball.r, 0, 2 * Math.PI);
 		ctx.fill();
+		ctx.stroke();
 	};
 
 	const drawPaddle = (ctx: CanvasRenderingContext2D, paddle: Paddle) => {
-		ctx.fillStyle = "#000000";
-		ctx.fillRect(paddle.x, paddle.y, paddle.w, paddle.h);
+		ctx.fillStyle = COLOR.ink;
+		ctx.beginPath();
+		ctx.roundRect(paddle.x, paddle.y, paddle.w, paddle.h, 4);
+		ctx.fill();
 	};
 
 	// Move a paddle by dy pixels (negative = up), clamped so it never
@@ -131,12 +144,12 @@ const Canvas = (props: CanvasProps) => {
 	};
 
 	const drawBackground = (ctx: CanvasRenderingContext2D) => {
-		ctx.fillStyle = "#ffffff";
+		ctx.fillStyle = COLOR.paper;
 		ctx.fillRect(0, 0, ctx.canvas.width, ctx.canvas.height);
 	};
 
 	const drawNet = (ctx: CanvasRenderingContext2D) => {
-		ctx.strokeStyle = "#000000";
+		ctx.strokeStyle = COLOR.inkGhost;
 		ctx.lineWidth = 4;
 		ctx.setLineDash([10, 10]); // 10px dash, 10px gap
 		ctx.beginPath();
@@ -231,24 +244,69 @@ const Canvas = (props: CanvasProps) => {
 	}, []);
 
 	return (
-		<div>
-			<div className="text-white text-3xl text-center font-mono">
-				{score.left} — {score.right}
+		<div className="anim-surgir flex flex-col items-center gap-5">
+			<div className="flex items-center gap-4">
+				<ScorePill label="Left" value={score.left} className="-rotate-2 bg-mandarine-clair" />
+
+				{isPaused ? (
+					<span className="trait rounded-pastille bg-citron px-4 py-1 font-display text-lg font-semibold shadow-autocollant-sm">
+						Paused
+					</span>
+				) : (
+					<span className="font-display text-lg text-encre-fantome">vs</span>
+				)}
+
+				<ScorePill label="Right" value={score.right} className="rotate-2 bg-menthe" />
 			</div>
-			  {isPaused && <div className="text-white text-center">Paused</div>}
-			<canvas ref={canvasRef} width={props.width} height={props.height} style={props.style} />
+
+			<div className="trait rounded-bulle bg-parchemin p-3 shadow-autocollant-lg">
+				<canvas
+					ref={canvasRef}
+					width={props.width}
+					height={props.height}
+					style={props.style}
+					className="block max-w-full rounded-2xl"
+				/>
+			</div>
 		</div>
 	);
 
 };
 
+interface ScorePillProps {
+	label: string;
+	value: number;
+	className?: string;
+}
+
+const ScorePill = (props: ScorePillProps) => {
+	return (
+		<div className={`trait flex items-baseline gap-2 rounded-bulle px-4 py-2 shadow-autocollant-sm ${props.className ?? ""}`}>
+			<span className="font-display text-sm font-semibold tracking-widest text-encre-doux uppercase">
+				{props.label}
+			</span>
+			<span className="font-display text-3xl font-bold tabular-nums text-encre">
+				{props.value}
+			</span>
+		</div>
+	);
+};
+
 export default function Page() {
 	return (
-		<div className="flex justify-center items-center min-h-screen">
-			<div>
-				<h1 className="text-white font-bold text-5xl font-serif text-center">Pong</h1>
-				<Canvas width={800} height={500} style={{ border: '10px solid black' }} />
-			</div>
+		<div className="flex min-h-dvh flex-col">
+			<header className="flex items-center gap-3 border-b-[3px] border-encre bg-carton px-5 py-3">
+				<h1 className="text-[1.3rem] leading-none">
+					<Logo />
+				</h1>
+				<p className="ml-auto font-display text-sm text-encre-doux">
+					W / S · ↑ / ↓ · Esc to pause
+				</p>
+			</header>
+
+			<main className="flex flex-1 items-center justify-center p-6">
+				<Canvas width={800} height={500} />
+			</main>
 		</div>
 	);
 }

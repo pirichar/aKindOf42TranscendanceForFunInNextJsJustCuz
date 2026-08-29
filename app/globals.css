@@ -1,26 +1,245 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ==========================================================================
+   Système visuel « cahier d'autocollants / cartouche d'arcade »
+   (emprunté à ../jeusaittout — même vocabulaire, mêmes jetons)
+   Papier crème chaud, contours d'encre épais, ombres dures décalées.
+   Aucune ombre floue, aucun dégradé décoratif : tout est franc et tactile.
+   ========================================================================== */
+
+@theme {
+  /* Surfaces — papier chaud, jamais de blanc pur */
+  --color-creme: oklch(0.968 0.024 84);
+  --color-parchemin: oklch(0.993 0.013 90);
+  --color-carton: oklch(0.925 0.032 82);
+
+  /* Encre — raisin profond, jamais de noir pur */
+  --color-encre: oklch(0.278 0.058 288);
+  --color-encre-doux: oklch(0.468 0.048 288);
+  --color-encre-fantome: oklch(0.66 0.032 288);
+
+  /* Accents — dominante mandarine, ponctuations franches */
+  --color-mandarine: oklch(0.752 0.169 56);
+  --color-mandarine-clair: oklch(0.878 0.088 68);
+  --color-framboise: oklch(0.652 0.192 15);
+  --color-menthe: oklch(0.836 0.126 166);
+  --color-menthe-fonce: oklch(0.63 0.13 168);
+  --color-myrtille: oklch(0.612 0.158 266);
+  --color-citron: oklch(0.906 0.142 100);
+
+  /* Typographie */
+  --font-display: var(--font-fredoka), ui-rounded, system-ui, sans-serif;
+  --font-body: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+
+  /* Signature : l'ombre autocollant (dure, décalée, jamais floue) */
+  --shadow-autocollant-xs: 2px 2px 0 var(--color-encre);
+  --shadow-autocollant-sm: 3px 3px 0 var(--color-encre);
+  --shadow-autocollant: 5px 5px 0 var(--color-encre);
+  --shadow-autocollant-lg: 8px 8px 0 var(--color-encre);
+
+  /* Décélération naturelle — surtout pas de rebond élastique */
+  --ease-sortie: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-douce: cubic-bezier(0.33, 1, 0.68, 1);
+
+  /* Rayons généreux : tout est rond et rassurant */
+  --radius-bulle: 1.5rem;
+  --radius-pastille: 999px;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* --------------------------------------------------------------------------
+   Base
+   -------------------------------------------------------------------------- */
+
+html {
+  font-size: 17px;
+  scroll-behavior: smooth;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+@media (width >= 48rem) {
+  html {
+    font-size: 18px;
   }
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-creme);
+  /* Grille de points façon papier quadrillé — texture, pas décoration gratuite. */
+  background-image: radial-gradient(
+    circle at 1px 1px,
+    color-mix(in oklch, var(--color-encre) 12%, transparent) 1px,
+    transparent 0
+  );
+  background-size: 22px 22px;
+  color: var(--color-encre);
+  font-family: var(--font-body);
+  font-size: 1rem;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+  overscroll-behavior-y: none;
+}
+
+h1,
+h2,
+h3,
+h4 {
+  font-family: var(--font-display);
+  font-weight: 600;
+  line-height: 1.1;
+  letter-spacing: -0.015em;
+}
+
+:focus-visible {
+  outline: 3px solid var(--color-myrtille);
+  outline-offset: 3px;
+  border-radius: 6px;
+}
+
+::selection {
+  background-color: var(--color-citron);
+  color: var(--color-encre);
+}
+
+/* --------------------------------------------------------------------------
+   Barres de défilement — assorties au papier
+   -------------------------------------------------------------------------- */
+
+.defilement-doux {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-encre-fantome) transparent;
+}
+
+.defilement-doux::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.defilement-doux::-webkit-scrollbar-thumb {
+  background-color: var(--color-encre-fantome);
+  border: 3px solid transparent;
+  background-clip: content-box;
+  border-radius: 999px;
+}
+
+.defilement-doux::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* --------------------------------------------------------------------------
+   Utilitaires signature
+   -------------------------------------------------------------------------- */
+
+/* Le trait d'encre qui entoure absolument tout dans cette interface. */
+@utility trait {
+  border-width: 3px;
+  border-color: var(--color-encre);
+  border-style: solid;
+}
+
+@utility trait-fin {
+  border-width: 2px;
+  border-color: var(--color-encre);
+  border-style: solid;
+}
+
+/* Bouton autocollant : s'enfonce vers son ombre au clic, comme une vraie touche. */
+@utility autocollant {
+  box-shadow: var(--shadow-autocollant-sm);
+  transition:
+    transform 180ms var(--ease-sortie),
+    box-shadow 180ms var(--ease-sortie);
+
+  &:hover:not(:disabled) {
+    transform: translate(-1px, -1px);
+    box-shadow: var(--shadow-autocollant);
+  }
+
+  &:active:not(:disabled) {
+    transform: translate(3px, 3px);
+    box-shadow: 0 0 0 var(--color-encre);
+  }
+
+  &:disabled {
+    box-shadow: var(--shadow-autocollant-xs);
+    opacity: 0.55;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Animations
+   -------------------------------------------------------------------------- */
+
+@keyframes surgir {
+  from {
+    opacity: 0;
+    transform: translateY(14px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes glisser-gauche {
+  from {
+    opacity: 0;
+    transform: translateX(-18px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes flotter {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateY(-7px) rotate(1.5deg);
+  }
+}
+
+@keyframes secouer {
+  0%,
+  100% {
+    transform: rotate(0deg);
+  }
+  25% {
+    transform: rotate(-5deg);
+  }
+  75% {
+    transform: rotate(5deg);
+  }
+}
+
+@utility anim-surgir {
+  animation: surgir 420ms var(--ease-sortie) both;
+}
+
+@utility anim-glisser {
+  animation: glisser-gauche 380ms var(--ease-sortie) both;
+}
+
+@utility anim-flotter {
+  animation: flotter 5s var(--ease-douce) infinite;
+}
+
+@utility anim-secouer {
+  animation: secouer 480ms var(--ease-douce);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }
