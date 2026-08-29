@@ -368,19 +368,19 @@ Loop reads it → ref. So the score can no longer live only in `useState`.
 ### 9d — Escape drives the pause menu
 
 **Requirements**
-- [ ] Keep the rising-edge block, change what it does:
+- [x] Keep the rising-edge block, change what it does:
   ```ts
   if (phaseRef.current === "playing") setPhase("paused");
   else if (phaseRef.current === "paused") setPhase("countdown");
   ```
-- [ ] Resume goes *through the countdown*: 3 s to get your hands back on the keys
-- [ ] Esc does nothing in `ready` / `finished`. The menu buttons own those
+- [x] Resume goes *through the countdown*: 3 s to get your hands back on the keys
+- [x] Esc does nothing in `ready` / `finished`. The menu buttons own those
 
 ### 9e — Win + restart
 
 **Requirements**
-- [ ] `const WIN_SCORE = 5;`
-- [ ] In `update()`, right after a point:
+- [x] `const WIN_SCORE = 5;`
+- [x] In `update()`, right after a point:
   ```ts
   if (game.score.left >= WIN_SCORE || game.score.right >= WIN_SCORE) {
   	setPhase("finished");
@@ -389,8 +389,8 @@ Loop reads it → ref. So the score can no longer live only in `useState`.
   }
   ```
   No `resetBall` on a win — otherwise the ball rolls around under the menu
-- [ ] Turn the big object literal in `useRef<GameState>({ … })` into a module-level function `createGameState(width, height): GameState`. Call it for the initial ref. (That's Step 10's first bullet, done early)
-- [ ] `restart()` in the component body — resets the ref **and** the state **and** the phase:
+- [x] Turn the big object literal in `useRef<GameState>({ … })` into a module-level function `createGameState(width, height): GameState`. Call it for the initial ref. (That's Step 10's first bullet, done early)
+- [x] `restart()` in the component body — resets the ref **and** the state **and** the phase:
   ```ts
   const restart = () => {
   	state.current = createGameState(props.width, props.height);

@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Logo } from "./components/logo";
 import { KeyboardInput } from "./components/movement";
 import type { Ball, GameState, Paddle, Phase } from "./components/types";
+import {Menu, Countdown} from "./components/menu"
 
 const COLOR = {
   paper: "oklch(0.993 0.013 90)",
@@ -30,6 +31,7 @@ const BALL_VY = 3;
 const BALL_MAX_VY = 10;
 const BALL_MAX_VX = 20;
 const COUNTDOWN_MS = 3000;
+const WIN_SCORE = 5;
 
 function hit(ball: Ball, paddle: Paddle): boolean {
   return (
@@ -100,6 +102,35 @@ function resetBall(ball: Ball, canvasWidth: number, canvasHeight: number, direct
 
 }
 
+function createGameState(width: number, height: number): GameState {
+  return {
+    ball: {
+      x: width / 2,
+      y: height / 2,
+      r: BALL_RADIUS,
+      vx: BALL_VX,
+      vy: BALL_VY,
+    },
+    left: {
+      x: PADDLE_MARGIN,
+      y: height / 2 - PADDLE_HEIGHT / 2,
+      w: PADDLE_WIDTH,
+      h: PADDLE_HEIGHT,
+    },
+    right: {
+      x: width - PADDLE_MARGIN - PADDLE_WIDTH,
+      y: height / 2 - PADDLE_HEIGHT / 2,
+      w: PADDLE_WIDTH,
+      h: PADDLE_HEIGHT,
+    },
+    score: {
+      left: 0,
+      right: 0,
+    }
+  }
+}
+
+
 const Canvas = (props: CanvasProps) => {
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -135,31 +166,13 @@ const Canvas = (props: CanvasProps) => {
   }, []);
 
   // Loop only. Changes 60x/s; a re-render per frame would be absurd.
-  const state = useRef<GameState>({
-    ball: {
-      x: props.width / 2,
-      y: props.height / 2,
-      r: BALL_RADIUS,
-      vx: BALL_VX,
-      vy: BALL_VY,
-    },
-    left: {
-      x: PADDLE_MARGIN,
-      y: props.height / 2 - PADDLE_HEIGHT / 2,
-      w: PADDLE_WIDTH,
-      h: PADDLE_HEIGHT,
-    },
-    right: {
-      x: props.width - PADDLE_MARGIN - PADDLE_WIDTH,
-      y: props.height / 2 - PADDLE_HEIGHT / 2,
-      w: PADDLE_WIDTH,
-      h: PADDLE_HEIGHT,
-    },
-    score: {
-      left: 0,
-      right: 0,
-    }
-  });
+  const state = useRef<GameState>(createGameState(props.width, props.height));
+
+  const restart = () => {
+    state.current = createGameState(props.width, props.height);
+    setScore({left: 0, right: 0});
+    setPhase("countdown");
+  }
 
   const drawBall = (ctx: CanvasRenderingContext2D, ball: Ball) => {
     ctx.fillStyle = COLOR.ball;
@@ -245,15 +258,20 @@ const Canvas = (props: CanvasProps) => {
 
       const scorer = checkScore(ball, ctx.canvas.width);
 
-      if (scorer === "right") {
-        game.score.right += 1;
+      if (scorer !== null) {
+        if (scorer === "right") {
+          game.score.right += 1;
+        }
+        if (scorer === "left") {
+          game.score.left += 1;
+        }
         setScore({ ...game.score });
-        resetBall(ball, ctx.canvas.width, ctx.canvas.height, -1);
-      }
-      if (scorer === "left") {
-        game.score.left += 1;
-        setScore({ ...game.score });
-        resetBall(ball, ctx.canvas.width, ctx.canvas.height, 1);
+        if (game.score.left >= WIN_SCORE || game.score.right >= WIN_SCORE) {
+          setPhase("finished");
+        }
+        else {
+          resetBall(ball, ctx.canvas.width, ctx.canvas.height, scorer === "right" ? -1 : 1);
+        }
       }
     };
 
@@ -276,7 +294,7 @@ const Canvas = (props: CanvasProps) => {
           setPhase("paused")
         }
         else if (phaseRef.current === "paused") {
-          setPhase("playing")
+          setPhase("countdown")
         }
       }
       escapeWasDown = escapeIsDown;
