@@ -15,6 +15,8 @@ Ball/paddle positions → `useRef` (game data).
 
 Key architecture lesson of Part B onward: **the server owns the game.**
 The browser only sends inputs and draws whatever state it receives.
+"The server" is one Cloudflare Durable Object: a single always-consistent
+instance with memory and WebSockets. The Next site on Vercel is just the screen.
 
 ---
 
@@ -31,7 +33,7 @@ The browser only sends inputs and draws whatever state it receives.
 | 7 | Human leaves mid-game | Session → `PAUSED`. Remaining human picks: wait / continue vs AI / quit. 30 s timeout → continue vs AI. Both gone → session ends. |
 | 8 | Idle | No session runs when nobody wants to play. "AI vs AI" button starts an exhibition; any Play press ends it. |
 | 9 | Stats / history / ladder | Not now. `SESSION_FINISHED` event is the hook for later. |
-| 10 | Hosting | Custom Node server (Next + `ws`, one port) in Docker. Not Vercel. |
+| 10 | Hosting | Site = Next on **Vercel** (Hobby, free). Game server = **Cloudflare Worker + one Durable Object** (free plan). Two repos-in-one, two `git push` deploys. No Docker, no VPS. Vercel can't host the game: new WS connections aren't pinned to one instance and functions die at 5 min. |
 
 ---
 
@@ -294,36 +296,53 @@ function step(state: GameState, inputs: Inputs): StepResult {
 
 # Part C — Realtime foundation (server + socket)
 
-## Step 12 — Custom server: Next + WebSocket on one port
+## Step 12 — Game server: a Cloudflare Worker + one Durable Object
+
+Read first (30 min, worth it):
+- https://developers.cloudflare.com/durable-objects/get-started/
+- https://developers.cloudflare.com/durable-objects/best-practices/websockets/  (Hibernation API)
 
 **Requirements**
-- [ ] Read `node_modules/next/dist/docs/01-app/02-guides/custom-server.md` — this Next version differs from your training data
-- [ ] Create `server.ts` at the repo root: `createServer` → `next({ dev })` handles HTTP, `ws` (`npm i ws @types/ws`) attaches to the same `http.Server`
-- [ ] `package.json` scripts: `"dev": "tsx server.ts"` (or `node --experimental-strip-types`), `"start": "NODE_ENV=production tsx server.ts"`
-- [ ] Log every connection/disconnection to the console
-- [ ] Browser: a `useEffect` opens `new WebSocket(...)`, logs `open`/`close`. Cleanup closes it
+- [ ] `npm create cloudflare@latest game -- --type hello-world-durable-object` (or by hand: `game/wrangler.jsonc`, `game/src/index.ts`). TypeScript, no framework
+- [ ] `wrangler.jsonc`: one Durable Object binding `ARENA` → class `Arena`, SQLite-backed (`new_sqlite_classes` — the only kind on the free plan)
+- [ ] Worker `fetch()`: if `Upgrade: websocket` → `env.ARENA.idFromName("main")` → forward the request to that one object. Everything else → 404. One name = one arena, worldwide
+- [ ] `Arena` class: in `fetch()`, `new WebSocketPair()`, `this.ctx.acceptWebSocket(server)`, return the client half with status 101
+- [ ] `webSocketMessage(ws, raw)` / `webSocketClose(ws)` handlers on the class — log them for now
+- [ ] `wrangler dev` runs it on `localhost:8787`. Browser: a `useEffect` opens `new WebSocket(process.env.NEXT_PUBLIC_WS_URL)`, logs `open`/`close`. Cleanup closes it
+- [ ] `.env.local`: `NEXT_PUBLIC_WS_URL=ws://localhost:8787`. Later on Vercel: `wss://<worker>.<you>.workers.dev`
 
 **Pseudocode**
 ```ts
-// server.ts
-const httpServer = createServer((req, res) => handle(req, res));
-const wss = new WebSocketServer({ server: httpServer });
-wss.on("connection", (socket) => {
-	console.log("client connected");
-	socket.on("message", (raw) => { /* JSON.parse, dispatch */ });
-	socket.on("close",   () => { /* remove player */ });
-});
-httpServer.listen(port);
+// game/src/index.ts
+export class Arena extends DurableObject {
+	async fetch(request: Request): Promise<Response> {
+		const pair = new WebSocketPair();
+		this.ctx.acceptWebSocket(pair[1]);          // hibernation-aware accept
+		return new Response(null, { status: 101, webSocket: pair[0] });
+	}
+	webSocketMessage(ws: WebSocket, raw: string | ArrayBuffer) { /* JSON.parse, dispatch */ }
+	webSocketClose(ws: WebSocket) { /* remove player */ }
+}
+
+export default {
+	fetch(request: Request, env: Env) {
+		if (request.headers.get("Upgrade") !== "websocket") return new Response(null, { status: 404 });
+		return env.ARENA.get(env.ARENA.idFromName("main")).fetch(request);
+	},
+};
 ```
 
 **Hints**
-- Route Handlers (`app/api/.../route.ts`) can NOT do WebSockets in Next —
-  the doc says so. That's why the custom server exists.
-- `server.ts` is not compiled by Next. It must import `lib/pong/*` with paths
-  Node understands — no `@/` alias unless you configure it for `tsx` too.
-- One `.env` var: `PORT`. Nothing secret exists in this project yet.
+- Why not the Next server: Route Handlers can't hold a socket open, and Vercel
+  doesn't pin connections to one instance. Why not a Node `ws` server: it needs
+  an always-on box you'd have to babysit. The DO is the always-on box, for free.
+- `game/` has its own `package.json` and `tsconfig.json`. It imports `../lib/pong/*`
+  and `../lib/protocol.ts` — that's why Part B forbids Node/DOM code in `lib/`.
+- A WebSocket has no CORS. Check `request.headers.get("Origin")` against an
+  allowlist in the Worker `fetch()`, or anyone can connect a bot to your arena.
 - StrictMode will open/close the socket twice in dev. If your cleanup closes
   it, that's correct behavior, not a bug.
+- `wrangler dev` + `next dev` = two terminals. Get used to it.
 
 ---
 
@@ -352,6 +371,11 @@ httpServer.listen(port);
 - Never send tokens to *other* clients. `presence` carries names only.
 - `localStorage` is a convenience. Cleared → new token → new person. That's
   fine and by design.
+- Durable Object detail: a hibernating object loses its JS memory but keeps
+  its sockets. Stash `{ token, name }` on each socket with
+  `ws.serializeAttachment(...)` and read it back with `ws.deserializeAttachment()`
+  — then `Map<token, Player>` can be rebuilt from `this.ctx.getWebSockets()`
+  on wake. (Only matters once the loop is stopped; see Step 15.)
 
 ---
 
@@ -408,7 +432,8 @@ interface Session {
 ## Step 15 — Server game loop & spectating (everyone watches)
 
 **Requirements**
-- [ ] Server: one `Session` object in memory. `setInterval(tick, 1000 / 60)`
+- [ ] Server: one `Session` object as a field on the `Arena` class
+- [ ] `setInterval(tick, 1000 / 60)` — **start it when the phase leaves `IDLE`, `clearInterval` when it returns to `IDLE`.** No loop while nobody plays: the object hibernates and costs nothing (decision #8, for free)
 - [ ] `tick()`: if `PLAYING` → `step(session.game, session.inputs)`; then handle phase timeouts; then broadcast
 - [ ] Broadcast `{ type: "state", phase, seats: { left: name|"AI", right: name|"AI" }, ball, paddles, score, queueLength }` — names only, never tokens
 - [ ] Broadcast at 30 Hz (every 2nd tick) — 60 is wasted on a 5-number payload but fine if simpler
@@ -417,8 +442,11 @@ interface Session {
 - [ ] "AI vs AI" button (visible when `IDLE`) → `{ type: "exhibition" }` → seats both `ai` → `COUNTDOWN`
 
 **Hints**
-- You've now split your old `loop()`: `update` half runs in `server.ts`,
+- You've now split your old `loop()`: `update` half runs in the Durable Object,
   `render` half stays in the browser. Same `GameState` type on both ends.
+- Broadcast = `for (const ws of this.ctx.getWebSockets()) ws.send(json)`.
+  Outgoing messages are free on the Cloudflare free plan; incoming count 20:1.
+  Inputs are sent on change only (Step 16), so you'll never get near the limit.
 - The ref/state rule from Part A still holds client-side, unchanged:
   ball → ref (60×/s), phase/score → state (rare).
 - Test: open two tabs. Press AI vs AI in one. Both show the same game.
@@ -488,21 +516,32 @@ interface Session {
 - [ ] Server: cap connected players (e.g. 50) — reply `{ type: "error", text: "room full" }` and close
 - [ ] Client: socket `close` → show "reconnecting…", retry with backoff (1 s, 2 s, 4 s, max 10 s). Same token → you get your seat back (Step 18)
 - [ ] Client: window blur → send `input: null` so a held key doesn't stick
+- [ ] Server: `this.ctx.setWebSocketAutoResponse(new WebSocketRequestResponsePair("ping", "pong"))` — client sends `"ping"` every 30 s, the platform answers without waking the object. Keeps proxies from closing idle sockets while the arena is `IDLE`
+- [ ] Server: `Session` must survive hibernation. Either keep the object awake only while non-`IDLE` (the interval does that) and rebuild players from socket attachments on wake, or persist `session` to `this.ctx.storage` on each phase change. Start with the first; it's less code
 
 ---
 
-## Step 20 — Docker & deploy
+## Step 20 — Deploy: Vercel + Cloudflare
 
 **Requirements**
-- [ ] `Dockerfile`: `npm ci` → `next build` → `CMD ["npm", "start"]`. Single container, single port
-- [ ] `docker compose up` starts it. One command, per the 42 tradition
-- [ ] Deploy anywhere that runs a long-lived container (Fly.io, Railway, a VPS). **Not** Vercel — WebSockets need a persistent process
-- [ ] HTTPS: terminate TLS at a reverse proxy (Caddy is 3 lines and auto-certs). Browser uses `wss://` when `location.protocol === "https:"`
-- [ ] README: what it is, how to run, the message protocol table
+- [ ] `cd game && npx wrangler deploy` → you get `https://<name>.<account>.workers.dev`. TLS is included; the browser uses `wss://` on that host
+- [ ] Cloudflare dashboard → Workers → connect the GitHub repo with root dir `game/` so a push deploys it (or keep it manual — it's one command)
+- [ ] Vercel → import the repo, framework Next.js, root dir `.`. Env var `NEXT_PUBLIC_WS_URL=wss://<name>.<account>.workers.dev`
+- [ ] Worker `Origin` allowlist (Step 12) includes the Vercel domain and `http://localhost:3000`
+- [ ] Both `main` pushes deploy. Test from a phone on mobile data — that's the first real network you'll have seen
+- [ ] README: what it is, how to run both halves locally, the message protocol table
 
-**Hint**
-- `next build` with the custom server: the doc warns `output: "standalone"`
-  and custom servers don't mix. Don't set `standalone`.
+**Hints**
+- Vercel Hobby is for non-commercial use — this project qualifies. No card needed.
+- Cloudflare free plan: 100k requests/day, 13,000 GB-s/day. A 128 MB object
+  running 24 h is ~11,000 GB-s. You fit even if someone plays all day; and with
+  the interval stopped on `IDLE` you'll use a fraction of that.
+- A Worker deploy resets the object's memory → everyone's session ends.
+  Clients reconnect with their token and land in a fresh `IDLE` arena.
+  Decision #2 says that's fine. Don't push mid-tournament.
+- Old plan (kept for reference): a Node custom server (`server.ts` + `ws`) in
+  Docker on a VPS. Same `lib/`, same protocol, different host. If Cloudflare
+  ever annoys you, that's the fallback and it's a day of work.
 
 ---
 
@@ -537,13 +576,17 @@ interface Session {
 | S→C | `error` | `text` | Human-readable, never a stack trace |
 
 Put these as TypeScript types in `lib/protocol.ts`, imported by **both**
-`server.ts` and the client. One file, two sides, no drift.
+`game/src/index.ts` and `app/page.tsx`. One file, two runtimes, no drift.
 
 ## Suggested file layout
 
 ```
-server.ts               ← Next + ws. Session, tick, dispatch. No React.
-lib/
+game/                   ← Cloudflare Worker. Deployed separately. No React.
+  wrangler.jsonc
+  package.json
+  src/
+    index.ts            ← Worker fetch() + Arena Durable Object: sockets, tick, dispatch
+lib/                    ← shared by BOTH game/ and app/. No Node, no DOM, no React.
   pong/
     types.ts            ← Ball, Paddle, GameState, Inputs
     constants.ts        ← PADDLE_*, BALL_*, WIN_SCORE, AI_*
@@ -551,11 +594,11 @@ lib/
     logic.test.ts
   protocol.ts           ← ClientMessage / ServerMessage unions
   session.ts            ← Session type + transitions (pure where possible)
-app/
-  pong/
-    page.tsx            ← socket, refs, render loop, JSX (button, chat, overlays)
+app/                    ← Next site. Deployed to Vercel.
+  page.tsx              ← socket, refs, render loop, JSX (button, chat, overlays)
   components/
     movement.ts         ← KeyboardInput (already done)
+    logo.tsx            ← (already done)
     Chat.tsx            ← message list + input + mute
 ```
 
@@ -570,3 +613,5 @@ app/
 - A state machine with timeouts instead of a pile of booleans
 - Identity without accounts: token = who, name = label
 - Designing a message protocol both sides share
+- One codebase, two runtimes (Vercel Functions + Cloudflare Workers) sharing a pure core
+- Durable Objects: single-instance state, WebSocket hibernation, paying zero for idle
