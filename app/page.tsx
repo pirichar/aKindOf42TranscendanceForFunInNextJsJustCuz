@@ -1,9 +1,9 @@
 "use client"
 
 import React, { useEffect, useRef, useState } from "react";
-import { KeyboardInput } from "./components/movement";
-import type { Ball, Paddle, GameState } from "./components/types";
 import { Logo } from "./components/logo";
+import { KeyboardInput } from "./components/movement";
+import type { Ball, GameState, Paddle } from "./components/types";
 
 const COLOR = {
 	paper: "oklch(0.993 0.013 90)",
@@ -26,7 +26,9 @@ const PADDLE_MARGIN = 10;   // gap between a paddle and its side wall
 const PADDLE_SPEED = 10;     // pixels per frame
 const BALL_RADIUS = 8;
 const BALL_VX = 10;
-const BALL_YX = 3;
+const BALL_VY = 3;
+const BALL_MAX_VY = 10;
+const BALL_MAX_VX = 20;
 
 function hit(ball: Ball, paddle: Paddle): boolean {
 	return (
@@ -37,16 +39,49 @@ function hit(ball: Ball, paddle: Paddle): boolean {
 	);
 }
 
+function clamp(value: number, min: number, max: number): number {
+	return Math.max(min, Math.min(value, max));
+}
+
+/*
+** The ball leaves the paddle at an angle that depends on WHERE it hit:
+** middle = flat shot, edge = steep shot. That's how a player aims.
+**
+** offset : where it hit, from -1 (top edge) through 0 (center) to 1 (bottom edge).
+**          (ball.y - center) is the distance in px; dividing by half the paddle
+**          height turns it into that -1..1 number. clamp() because the ball is
+**          a circle and its center can poke a few px past the edge.
+** vy     : offset * max  ->  0 in the middle, full speed at the edges.
+** vx     : 5% faster each hit, capped, then pointed in `dir`
+**          (1 = right, left paddle was hit ; -1 = left). Setting the direction
+**          instead of flipping it means a double hit can't send it backwards.
+** x      : teleport the ball to the paddle's face, one radius away. hit() fired
+**          while overlapping, so without this it could fire again next frame.
+*/
+function bounceOffPaddle(ball: Ball, paddle: Paddle, dir: 1 | -1): void {
+	const center = paddle.y + paddle.h / 2;
+	const offset = clamp((ball.y - center) / (paddle.h / 2), -1, 1);
+
+	ball.vy = offset * BALL_MAX_VY;
+	ball.vx = Math.min(Math.abs(ball.vx) * 1.05, BALL_MAX_VX) * dir;
+
+	if (dir === 1) {
+		ball.x = paddle.x + paddle.w + ball.r;
+	} else {
+		ball.x = paddle.x - ball.r;
+	}
+}
+
 const manageBallBounces = (ball: Ball, ctx: CanvasRenderingContext2D, left: Paddle, right: Paddle) => {
 	//ceiling and floor always bounces
 	if (ball.y - ball.r <= 0 || ball.y + ball.r >= ctx.canvas.height) {
 		ball.vy = -ball.vy;
 	}
 	if (hit(ball, left)) {
-		ball.vx = -ball.vx;
+    bounceOffPaddle(ball, left, 1);
 	}
 	if (hit(ball, right)) {
-		ball.vx = -ball.vx;
+    bounceOffPaddle(ball, right, -1);
 	}
 };
 
@@ -60,7 +95,7 @@ function resetBall(ball: Ball, canvasWidth: number, canvasHeight: number, direct
 	ball.x = canvasWidth / 2;
 	ball.y = canvasHeight / 2;
 	ball.vx = BALL_VX * direction;
-	ball.vy = BALL_YX;
+	ball.vy = BALL_VY;
 
 }
 
@@ -95,7 +130,7 @@ const Canvas = (props: CanvasProps) => {
 			y: props.height / 2,
 			r: BALL_RADIUS,
 			vx: BALL_VX,
-			vy: BALL_YX,
+			vy: BALL_VY,
 		},
 		left: {
 			x: PADDLE_MARGIN,

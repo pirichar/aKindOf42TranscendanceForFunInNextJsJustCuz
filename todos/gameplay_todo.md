@@ -184,6 +184,52 @@ hit(ball, paddle):
   every frame. Fix: after a hit, also push the ball outside the paddle,
   or only flip when it's moving *toward* the paddle.
 
+### Step 6b — Nicer bounce, in detail
+
+`hit()` stays a yes/no question. The *reaction* to a hit gets its own function,
+and `manageBallBounces` just wires them: `if (hit(ball, left)) bounceOffPaddle(ball, left, 1)`.
+Everything that happens "on paddle hit" — angle, push-out, speed-up — lives in
+that one function.
+
+**Requirements**
+- [ ] `bounceOffPaddle(ball, paddle, dir)` where `dir` is `1` (ball leaves toward the right = left paddle was hit) or `-1`
+- [ ] Angle from where it hit: `offset = (ball.y - paddleCenter) / (paddle.h / 2)` → `-1` top edge, `0` dead center, `+1` bottom edge. Clamp to `[-1, 1]` (the ball's radius lets it hit slightly outside)
+- [ ] `ball.vy = offset * BALL_MAX_VY` — new constant, try `6`. Center hit → flat return; edge hit → steep
+- [ ] `ball.vx = Math.abs(ball.vx) * dir` — sets direction explicitly instead of flipping, so a double-hit can never send it back into the paddle
+- [ ] Push-out (kills the stuck bug for good): `dir === 1 ? ball.x = paddle.x + paddle.w + ball.r : ball.x = paddle.x - ball.r`
+- [ ] Optional: `ball.vx *= 1.05` on every paddle hit, capped at `BALL_MAX_VX` — rallies get tense
+
+**Pseudocode**
+```ts
+function bounceOffPaddle(ball: Ball, paddle: Paddle, dir: 1 | -1): void {
+	const center = paddle.y + paddle.h / 2;
+	const offset = clamp((ball.y - center) / (paddle.h / 2), -1, 1);
+
+	ball.vy = offset * BALL_MAX_VY;
+	ball.vx = Math.min(Math.abs(ball.vx) * 1.05, BALL_MAX_VX) * dir;
+
+	if (dir === 1) ball.x = paddle.x + paddle.w + ball.r;
+	else           ball.x = paddle.x - ball.r;
+}
+
+// in manageBallBounces:
+if (hit(ball, left))  bounceOffPaddle(ball, left, 1);
+if (hit(ball, right)) bounceOffPaddle(ball, right, -1);
+```
+
+**Hints**
+- `clamp(v, lo, hi)` is `Math.max(lo, Math.min(hi, v))`. Put it in `lib/pong/logic.ts`
+  once you're in Part B; until then, next to `hit`.
+- Why `dir` as a parameter instead of guessing from `paddle.x`: the function then
+  knows nothing about the canvas or which side is which — pure, testable, and
+  it still works if you ever have 4 paddles.
+- With this, `vx` is constant-ish and `vy` varies, so the ball is faster on
+  steep returns. That's how the 1972 arcade did it and it feels right. The
+  "constant speed, variable angle" version (`vx = cos(a)·speed`, `vy = sin(a)·speed`)
+  is a 3-line swap later if you disagree.
+- Once `bounceOffPaddle` exists, the "only flip when moving toward the paddle"
+  guard is unnecessary: the push-out guarantees the ball is outside after the hit.
+
 ---
 
 ## Step 7 — Scoring (this is where useState finally appears)
