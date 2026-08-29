@@ -168,7 +168,7 @@ useEffect(() => {
 **Requirements**
 - [x] Detect ball–paddle overlap (rectangle vs circle; treating the ball as a small square is fine) (`hit()` in `page.tsx`, module level)
 - [x] On hit: invert `vx` (`manageBallBounces()`; left/right wall bounce removed — missed ball flies off, ready for step 7)
-- [ ] Nicer bounce (optional): the further from the paddle's center the ball hits, the steeper the angle → set `vy` based on `(ball.y - paddleCenter) / (paddle.h / 2)`
+- [x] Nicer bounce (optional): the further from the paddle's center the ball hits, the steeper the angle → set `vy` based on `(ball.y - paddleCenter) / (paddle.h / 2)` (see 6b)
 
 **Pseudocode**
 ```
@@ -192,12 +192,12 @@ Everything that happens "on paddle hit" — angle, push-out, speed-up — lives 
 that one function.
 
 **Requirements**
-- [ ] `bounceOffPaddle(ball, paddle, dir)` where `dir` is `1` (ball leaves toward the right = left paddle was hit) or `-1`
-- [ ] Angle from where it hit: `offset = (ball.y - paddleCenter) / (paddle.h / 2)` → `-1` top edge, `0` dead center, `+1` bottom edge. Clamp to `[-1, 1]` (the ball's radius lets it hit slightly outside)
-- [ ] `ball.vy = offset * BALL_MAX_VY` — new constant, try `6`. Center hit → flat return; edge hit → steep
-- [ ] `ball.vx = Math.abs(ball.vx) * dir` — sets direction explicitly instead of flipping, so a double-hit can never send it back into the paddle
-- [ ] Push-out (kills the stuck bug for good): `dir === 1 ? ball.x = paddle.x + paddle.w + ball.r : ball.x = paddle.x - ball.r`
-- [ ] Optional: `ball.vx *= 1.05` on every paddle hit, capped at `BALL_MAX_VX` — rallies get tense
+- [x] `bounceOffPaddle(ball, paddle, dir)` where `dir` is `1` (ball leaves toward the right = left paddle was hit) or `-1`
+- [x] Angle from where it hit: `offset = (ball.y - paddleCenter) / (paddle.h / 2)` → `-1` top edge, `0` dead center, `+1` bottom edge. Clamp to `[-1, 1]` (the ball's radius lets it hit slightly outside)
+- [x] `ball.vy = offset * BALL_MAX_VY` — new constant, try `6`. (went with 10) Center hit → flat return; edge hit → steep
+- [x] `ball.vx = Math.abs(ball.vx) * dir` — sets direction explicitly instead of flipping, so a double-hit can never send it back into the paddle
+- [x] Push-out (kills the stuck bug for good): `dir === 1 ? ball.x = paddle.x + paddle.w + ball.r : ball.x = paddle.x - ball.r`
+- [x] Optional: `ball.vx *= 1.05` on every paddle hit, capped at `BALL_MAX_VX` — rallies get tense (cap = 20)
 
 **Pseudocode**
 ```ts
@@ -270,15 +270,175 @@ if center > ball.y + DEADZONE: paddle.y -= AI_SPEED
 
 ---
 
-## Step 9 — Game flow & polish (local)
+## Step 9 — Game flow: a state machine (local)
+
+Landing on the page shows a Start menu. Start → 3-2-1 countdown → play.
+Esc opens a Pause menu (Resume / Restart). First to 5 → "X wins" menu (Play again).
+
+This is the same state machine the server will run in Part E. You're building
+it in the browser first. The UI is done: `components/menu.tsx` exports
+`Menu` and `Countdown` (see 9f). Everything else is yours.
+
+**The big idea: one `phase` instead of booleans**
+```ts
+type Phase = "ready" | "countdown" | "playing" | "paused" | "finished";
+```
+Five states in booleans would be `!isReady && !isPaused && !isFinished…` hell.
+One variable, five values, and `switch` on it.
+
+```
+ready ──Start──► countdown ──3 s──► playing ──Esc──► paused ──Esc/Resume──► countdown
+                    ▲                  │                 │
+                    │                  └──score 5──► finished ──Play again──┐
+                    └────────────────────────────── Restart ◄───────────────┘
+```
+
+Do the sub-steps in order. Each one compiles and runs on its own.
+
+### 9a — `phase` replaces `isPaused`
 
 **Requirements**
-- [x] Pause/resume with Space or a button (`useState` boolean; when paused, skip `update()` but keep rendering) (Escape; `isPausedRef` for the loop, `isPaused` state for the JSX, rising-edge toggle)
-- [ ] Win condition: first to 5 → show a "X wins — play again?" overlay in JSX
-- [ ] Restart button that resets score (state) *and* positions (ref)
+- [ ] `type Phase = …` at module level (top of `page.tsx`)
+- [ ] `phaseRef = useRef<Phase>("ready")` (the loop reads it) + `[phase, setPhaseState] = useState<Phase>("ready")` (the JSX shows it) — same both-ways pattern as `isPausedRef`/`isPaused`
+- [ ] `phaseSince = useRef(0)` — timestamp of when the current phase started. The countdown needs it
+- [ ] One helper that sets all three, so you can never forget the mirror:
+  ```ts
+  const setPhase = useCallback((next: Phase) => {
+  	phaseRef.current = next;
+  	phaseSince.current = performance.now();
+  	setPhaseState(next);
+  }, []);
+  ```
+- [ ] Delete `isPausedRef`, `isPaused`, `setIsPaused`
+- [ ] Loop: `if (phaseRef.current === "playing") update(...)`. Nothing else yet. Game is frozen on load — correct, there's no Start button yet
+- [ ] Effect dependency array becomes `[setPhase]`
+
+**Why `useCallback`** (new): the effect calls `setPhase`, so the linter wants
+it in the dependency array. A plain `const setPhase = () => …` is a NEW function
+every render → the effect would re-run every render → your loop restarts 60×/s.
+`useCallback(fn, [])` returns the SAME function object every render, so
+`[setPhase]` never changes and the effect runs once. `performance.now()` is
+`Date.now()`'s cousin: milliseconds, but the same clock `requestAnimationFrame` uses.
+
+### 9b — Score moves into the ref (the trap of the day)
+
+Win check = "did anyone reach 5?" — and the **loop** has to ask that.
+Loop reads it → ref. So the score can no longer live only in `useState`.
+
+**Requirements**
+- [ ] `types.ts`: `export interface Score { left: number; right: number }` and add `score: Score` to `GameState`
+- [ ] Initial state gets `score: { left: 0, right: 0 }`
+- [ ] `update()`: `game.score.right += 1` (or `.left`), then mirror: `setScore({ ...game.score })`
+- [ ] The `setScore(s => …)` updater form goes away. It was needed because state was the truth; now the ref is
+- [ ] Update or delete the two comment lines above the scoring block
+
+**Hint**
+- `{ ...game.score }` = a *copy*. React compares object identity to decide
+  whether to re-render; passing `game.score` itself (same object as last time)
+  would sometimes not re-render.
+
+### 9c — Countdown
+
+**Requirements**
+- [ ] `const COUNTDOWN_MS = 3000;` in the constants
+- [ ] `countdownRef = useRef(3)` + `[countdown, setCountdown] = useState(3)` — both-ways again: the loop computes the digit every frame, but only calls `setCountdown` when it changes (otherwise 60 re-renders/s)
+- [ ] Loop becomes a `switch (phaseRef.current)`:
+  ```ts
+  case "countdown": {
+  	const elapsed = performance.now() - phaseSince.current;
+  	const remaining = Math.ceil((COUNTDOWN_MS - elapsed) / 1000);
+  	if (remaining !== countdownRef.current) {
+  		countdownRef.current = remaining;
+  		setCountdown(remaining);
+  	}
+  	if (elapsed >= COUNTDOWN_MS) setPhase("playing");
+  	break;
+  }
+  case "playing":
+  	update(context, state.current);
+  	break;
+  ```
+  `render()` stays *after* the switch — always draw, whatever the phase
+- [ ] Temporarily start in `"countdown"` instead of `"ready"` to test: the game should start after 3 s
+
+**Hint**
+- `Math.ceil`, not `floor`: at 2999 ms elapsed there's 1 ms left → ceil gives 1,
+  floor would give 0 and you'd flash a "0" for a frame. 3-2-1, never 0.
+
+### 9d — Escape drives the pause menu
+
+**Requirements**
+- [ ] Keep the rising-edge block, change what it does:
+  ```ts
+  if (phaseRef.current === "playing") setPhase("paused");
+  else if (phaseRef.current === "paused") setPhase("countdown");
+  ```
+- [ ] Resume goes *through the countdown*: 3 s to get your hands back on the keys
+- [ ] Esc does nothing in `ready` / `finished`. The menu buttons own those
+
+### 9e — Win + restart
+
+**Requirements**
+- [ ] `const WIN_SCORE = 5;`
+- [ ] In `update()`, right after a point:
+  ```ts
+  if (game.score.left >= WIN_SCORE || game.score.right >= WIN_SCORE) {
+  	setPhase("finished");
+  } else {
+  	resetBall(...);
+  }
+  ```
+  No `resetBall` on a win — otherwise the ball rolls around under the menu
+- [ ] Turn the big object literal in `useRef<GameState>({ … })` into a module-level function `createGameState(width, height): GameState`. Call it for the initial ref. (That's Step 10's first bullet, done early)
+- [ ] `restart()` in the component body — resets the ref **and** the state **and** the phase:
+  ```ts
+  const restart = () => {
+  	state.current = createGameState(props.width, props.height);
+  	setScore({ left: 0, right: 0 });
+  	setPhase("countdown");
+  };
+  ```
+
+### 9f — Wire the overlays
+
+`components/menu.tsx` (already written) exports:
+```ts
+<Menu title="…" subtitle?="…" actions={[{ label, onClick, primary? }]} />
+<Countdown value={3} />
+```
+Both are `absolute inset-0` — they fill their parent. So:
+
+**Requirements**
+- [ ] Add `relative` to the canvas frame `<div className="trait rounded-bulle …">`
+- [ ] Inside that div, after the `<canvas>`, one overlay per phase:
+  - `phase === "ready"` → `Menu` "Pong Arena", subtitle with the controls, one primary action `Start` → `setPhase("countdown")`
+  - `phase === "countdown"` → `<Countdown value={countdown} />`
+  - `phase === "paused"` → `Menu` "Paused", actions `Resume` (→ countdown, primary) and `Restart` (→ `restart`)
+  - `phase === "finished"` → `Menu` "Left wins!" / "Right wins!" (compare `score.left` and `score.right`), subtitle `5 — 3`, action `Play again` → `restart`
+- [ ] Remove the `Paused` pill from the scoreboard; the menu replaces it. `vs` stays
+- [ ] Set the initial phase back to `"ready"`
+
+**Hints**
+- `{phase === "ready" && <Menu … />}` — the JSX idiom for `if`. `&&` returns
+  the right side when the left is true, `false` otherwise, and React renders
+  `false` as nothing.
+- `Menu` and the buttons call `setPhase` / `restart` from the *component body* —
+  that's the JSX side, where state and refs are both fine to touch.
+- Test the whole flow: land → Start → 3-2-1 → play → Esc → Resume → 3-2-1 →
+  play to 5 → "X wins" → Play again → 3-2-1. Then Restart from the pause menu.
+
+### 9g — Done when
+
+- [ ] `npx tsc --noEmit` clean, `npx eslint app/` clean (no `exhaustive-deps` warning)
+- [ ] `grep -n isPaused app/page.tsx` returns nothing
+- [ ] Old bullets, for the record:
+  - [x] Pause/resume (Escape; rising-edge toggle)
+  - [ ] Win condition: first to 5 → overlay
+  - [ ] Restart button that resets score (state) *and* positions (ref)
 
 **Ideas if you want more**
-- Speed the ball up slightly on every paddle hit
+- Resume skips the countdown (just `setPhase("playing")`) if the 3 s annoys you
+- Space also starts / resumes
 - Sounds with the `Audio` API on bounce/score
 
 ---
